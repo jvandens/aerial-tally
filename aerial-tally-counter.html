@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aerial Tally Counter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            padding: 10px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 15px 0;
+            background: #2a2a2a;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .status {
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .gps-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            margin-right: 5px;
+        }
+        
+        .gps-status.active {
+            background: #44ff44;
+        }
+        
+        .total-count {
+            font-size: 18px;
+            color: #4CAF50;
+            margin-top: 5px;
+        }
+        
+        .button-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            flex: 1;
+            margin-bottom: 15px;
+        }
+        
+        .tally-button {
+            background: linear-gradient(145deg, #3a3a3a, #2a2a2a);
+            border: 3px solid #4CAF50;
+            border-radius: 15px;
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.1s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            min-height: 150px;
+        }
+        
+        .tally-button:active {
+            transform: scale(0.95);
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        
+        .button-count {
+            font-size: 36px;
+            color: #4CAF50;
+            margin-top: 10px;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .control-button {
+            background: #2a2a2a;
+            border: 2px solid #666;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .control-button:active {
+            transform: scale(0.98);
+        }
+        
+        .export-button {
+            border-color: #2196F3;
+            color: #2196F3;
+        }
+        
+        .reset-button {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+        
+        .feedback {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(76, 175, 80, 0.95);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: none;
+            transition: transform 0.2s;
+            z-index: 1000;
+        }
+        
+        .feedback.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Aerial Tally Counter</h1>
+        <div class="status">
+            <span class="gps-status" id="gpsStatus"></span>
+            <span id="statusText">Initializing GPS...</span>
+        </div>
+        <div class="total-count">Total: <span id="totalCount">0</span></div>
+    </div>
+    
+    <div class="button-grid" id="buttonGrid">
+        <!-- Buttons will be added here -->
+    </div>
+    
+    <div class="controls">
+        <button class="control-button export-button" onclick="exportData()">📊 Export Data</button>
+        <button class="control-button reset-button" onclick="resetData()">🗑️ Reset All</button>
+    </div>
+    
+    <div class="feedback" id="feedback"></div>
+
+    <script>
+        // Configuration - CUSTOMIZE YOUR BUTTONS HERE
+        const BUTTONS = [
+            { id: '1/boat', label: '1/boat', color: '#4CAF50' },
+            { id: 'NY', label: 'NY', color: '#2196F3' },
+            { id: '2/boat', label: '2/boat', color: '#4CAF50' },
+            { id: 'PA', label: 'PA', color: '#2196F3' },
+            { id: '3/boat', label: '3/boat', color: '#4CAF50' },
+            { id: 'DE', label: 'DE', color: '#2196F3' }
+        ];
+        
+        // State
+        let entries = [];
+        let counts = {};
+        let currentPosition = null;
+        let gpsWatchId = null;
+        
+        // Initialize counts
+        BUTTONS.forEach(btn => counts[btn.id] = 0);
+        
+        // Load saved data
+        function loadData() {
+            const saved = localStorage.getItem('tallyData');
+            if (saved) {
+                const data = JSON.parse(saved);
+                entries = data.entries || [];
+                counts = data.counts || {};
+                BUTTONS.forEach(btn => {
+                    if (!counts[btn.id]) counts[btn.id] = 0;
+                });
+                updateDisplay();
+            }
+        }
+        
+        // Save data
+        function saveData() {
+            localStorage.setItem('tallyData', JSON.stringify({ entries, counts }));
+        }
+        
+        // Create buttons
+        function createButtons() {
+            const grid = document.getElementById('buttonGrid');
+            BUTTONS.forEach(btn => {
+                const button = document.createElement('button');
+                button.className = 'tally-button';
+                button.style.borderColor = btn.color;
+                button.innerHTML = `
+                    <div>${btn.label}</div>
+                    <div class="button-count" id="count-${btn.id}">0</div>
+                `;
+                button.onclick = () => logEntry(btn.id, btn.label);
+                grid.appendChild(button);
+            });
+        }
+        
+        // Log entry
+        function logEntry(buttonId, buttonLabel) {
+            const entry = {
+                timestamp: new Date().toISOString(),
+                button: buttonLabel,
+                buttonId: buttonId,
+                latitude: currentPosition?.latitude || null,
+                longitude: currentPosition?.longitude || null,
+                altitude: currentPosition?.altitude || null,
+                accuracy: currentPosition?.accuracy || null
+            };
+            
+            entries.push(entry);
+            counts[buttonId]++;
+            
+            saveData();
+            updateDisplay();
+            showFeedback(buttonLabel);
+            
+            // Vibrate if supported
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+        
+        // Update display
+        function updateDisplay() {
+            BUTTONS.forEach(btn => {
+                const countEl = document.getElementById(`count-${btn.id}`);
+                if (countEl) {
+                    countEl.textContent = counts[btn.id] || 0;
+                }
+            });
+            
+            const total = Object.values(counts).reduce((sum, val) => sum + val, 0);
+            document.getElementById('totalCount').textContent = total;
+        }
+        
+        // Show feedback
+        function showFeedback(label) {
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = `✓ ${label}`;
+            feedback.classList.add('show');
+            setTimeout(() => {
+                feedback.classList.remove('show');
+            }, 300);
+        }
+        
+        // GPS handling
+        function startGPS() {
+            if (!navigator.geolocation) {
+                document.getElementById('statusText').textContent = 'GPS not available';
+                return;
+            }
+            
+            gpsWatchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    currentPosition = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        altitude: position.coords.altitude,
+                        accuracy: position.coords.accuracy
+                    };
+                    
+                    document.getElementById('gpsStatus').classList.add('active');
+                    document.getElementById('statusText').textContent = 
+                        `GPS: ±${Math.round(position.coords.accuracy)}m`;
+                },
+                (error) => {
+                    console.error('GPS error:', error);
+                    document.getElementById('statusText').textContent = 
+                        'GPS unavailable - logging without location';
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 5000,
+                    timeout: 10000
+                }
+            );
+        }
+        
+        // Export data
+        function exportData() {
+            if (entries.length === 0) {
+                alert('No data to export!');
+                return;
+            }
+            
+            // Create CSV
+            const headers = ['Timestamp', 'Button', 'Latitude', 'Longitude', 'Altitude', 'Accuracy (m)'];
+            const rows = entries.map(e => [
+                e.timestamp,
+                e.button,
+                e.latitude || 'N/A',
+                e.longitude || 'N/A',
+                e.altitude || 'N/A',
+                e.accuracy || 'N/A'
+            ]);
+            
+            const csv = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+            
+            // Create download
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `aerial-tally-${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert(`Exported ${entries.length} entries!`);
+        }
+        
+        // Reset data
+        function resetData() {
+            if (!confirm(`Reset all data? This will delete ${entries.length} entries.`)) {
+                return;
+            }
+            
+            entries = [];
+            BUTTONS.forEach(btn => counts[btn.id] = 0);
+            saveData();
+            updateDisplay();
+            alert('Data reset complete!');
+        }
+        
+        // Initialize
+        loadData();
+        createButtons();
+        startGPS();
+        updateDisplay();
+        
+        // Prevent accidental page refresh
+        window.addEventListener('beforeunload', (e) => {
+            if (entries.length > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -3,8 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Aerial Tally Counter</title>
     <style>
         * {
@@ -21,13 +19,11 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            user-select: none;
-            -webkit-user-select: none;
         }
         
         .header {
             text-align: center;
-            padding: 15px;
+            padding: 15px 0;
             background: #2a2a2a;
             border-radius: 10px;
             margin-bottom: 15px;
@@ -56,48 +52,10 @@
             background: #44ff44;
         }
         
-        .offline-status {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #44ff44;
-            margin-right: 5px;
-        }
-        
-        .offline-status.offline {
-            background: #ff9800;
-        }
-        
         .total-count {
             font-size: 18px;
             color: #4CAF50;
             margin-top: 5px;
-        }
-        
-        .unsaved-warning {
-            background: #ff9800;
-            color: white;
-            padding: 8px;
-            border-radius: 8px;
-            margin-top: 8px;
-            font-weight: bold;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .unsaved-warning.show {
-            display: block;
-        }
-        
-        .unsaved-warning.critical {
-            background: #ff4444;
-            animation: pulse 1s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
         }
         
         .button-grid {
@@ -124,7 +82,6 @@
             justify-content: center;
             padding: 20px;
             min-height: 150px;
-            touch-action: manipulation;
         }
         
         .tally-button:active {
@@ -155,7 +112,6 @@
             padding: 15px;
             cursor: pointer;
             transition: all 0.2s;
-            touch-action: manipulation;
         }
         
         .control-button:active {
@@ -191,43 +147,16 @@
         .feedback.show {
             transform: translate(-50%, -50%) scale(1);
         }
-        
-        .auto-backup-notice {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(33, 150, 243, 0.95);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: bold;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 999;
-        }
-        
-        .auto-backup-notice.show {
-            opacity: 1;
-        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Aerial Tally Counter</h1>
         <div class="status">
-            <span class="offline-status" id="offlineStatus"></span>
-            <span id="offlineText">Online</span>
-            &nbsp;|&nbsp;
             <span class="gps-status" id="gpsStatus"></span>
             <span id="statusText">Initializing GPS...</span>
         </div>
         <div class="total-count">Total: <span id="totalCount">0</span></div>
-        <div class="unsaved-warning" id="unsavedWarning">
-            ⚠️ <span id="unsavedCount">0</span> entries not exported
-        </div>
     </div>
     
     <div class="button-grid" id="buttonGrid">
@@ -235,103 +164,55 @@
     </div>
     
     <div class="controls">
-        <button class="control-button export-button" onclick="exportData()">📊 Export All</button>
+        <button class="control-button export-button" onclick="exportData()">📊 Export Data</button>
         <button class="control-button reset-button" onclick="resetData()">🗑️ Reset All</button>
     </div>
     
     <div class="feedback" id="feedback"></div>
-    <div class="auto-backup-notice" id="autoBackupNotice">💾 Auto-backup saved</div>
 
     <script>
-        // Configuration - CUSTOMIZE HERE
-        const CONFIG = {
-            buttons: [
-                { id: 'cattle', label: 'Cattle', color: '#4CAF50' },
-                { id: 'sheep', label: 'Sheep', color: '#2196F3' },
-                { id: 'structures', label: 'Structures', color: '#FF9800' },
-                { id: 'vehicles', label: 'Vehicles', color: '#9C27B0' }
-            ],
-            autoBackupInterval: 25, // Auto-backup every N entries
-            reminderInterval: 300000, // Remind to export every 5 minutes (300000ms)
-            criticalUnsavedThreshold: 50 // Warning becomes critical at this many unsaved
-        };
+        // Configuration - CUSTOMIZE BUTTONS HERE
+        const BUTTONS = [
+            { id: '1/boat', label: '1/boat', color: '#4CAF50' },
+            { id: 'NY', label: 'NY', color: '#2196F3' },
+            { id: '2/boat', label: '2/boat', color: '#4CAF50' },
+            { id: 'PA', label: 'PA', color: '#2196F3' },
+            { id: '3/boat', label: '3/boat', color: '#4CAF50' },
+            { id: 'DE', label: 'DE', color: '#2196F3' }
+        ];
         
         // State
         let entries = [];
         let counts = {};
         let currentPosition = null;
         let gpsWatchId = null;
-        let lastExportedCount = 0;
-        let reminderTimer = null;
         
         // Initialize counts
-        CONFIG.buttons.forEach(btn => counts[btn.id] = 0);
-        
-        // Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('service-worker.js')
-                .then(reg => console.log('Service Worker registered'))
-                .catch(err => console.log('Service Worker registration failed:', err));
-        }
-        
-        // Offline detection
-        function updateOfflineStatus() {
-            const isOnline = navigator.onLine;
-            const statusEl = document.getElementById('offlineStatus');
-            const textEl = document.getElementById('offlineText');
-            
-            if (isOnline) {
-                statusEl.classList.remove('offline');
-                textEl.textContent = 'Online';
-            } else {
-                statusEl.classList.add('offline');
-                textEl.textContent = 'Offline';
-            }
-        }
-        
-        window.addEventListener('online', updateOfflineStatus);
-        window.addEventListener('offline', updateOfflineStatus);
+        BUTTONS.forEach(btn => counts[btn.id] = 0);
         
         // Load saved data
         function loadData() {
             const saved = localStorage.getItem('tallyData');
             if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    entries = data.entries || [];
-                    counts = data.counts || {};
-                    lastExportedCount = data.lastExportedCount || 0;
-                    CONFIG.buttons.forEach(btn => {
-                        if (!counts[btn.id]) counts[btn.id] = 0;
-                    });
-                    updateDisplay();
-                    updateUnsavedWarning();
-                } catch (e) {
-                    console.error('Error loading data:', e);
-                    alert('Warning: Could not load previous data. Starting fresh.');
-                }
+                const data = JSON.parse(saved);
+                entries = data.entries || [];
+                counts = data.counts || {};
+                BUTTONS.forEach(btn => {
+                    if (!counts[btn.id]) counts[btn.id] = 0;
+                });
+                updateDisplay();
             }
         }
         
         // Save data
         function saveData() {
-            try {
-                localStorage.setItem('tallyData', JSON.stringify({ 
-                    entries, 
-                    counts, 
-                    lastExportedCount,
-                    savedAt: new Date().toISOString()
-                }));
-            } catch (e) {
-                console.error('Error saving data:', e);
-                alert('CRITICAL: Could not save data! Storage may be full. Export immediately!');
-            }
+            localStorage.setItem('tallyData', JSON.stringify({ entries, counts }));
         }
         
         // Create buttons
         function createButtons() {
             const grid = document.getElementById('buttonGrid');
-            CONFIG.buttons.forEach(btn => {
+            BUTTONS.forEach(btn => {
                 const button = document.createElement('button');
                 button.className = 'tally-button';
                 button.style.borderColor = btn.color;
@@ -347,8 +228,7 @@
         // Log entry
         function logEntry(buttonId, buttonLabel) {
             const entry = {
-                timestamp: new Date(new Date() - new Date().getTimezoneOffset() * 60000)
-                    .toISOString().slice(0, -1), // Local time in ISO format
+                timestamp: new Date().toISOString(),
                 button: buttonLabel,
                 buttonId: buttonId,
                 latitude: currentPosition?.latitude || null,
@@ -362,14 +242,7 @@
             
             saveData();
             updateDisplay();
-            updateUnsavedWarning();
             showFeedback(buttonLabel);
-            
-            // Check for auto-backup
-            checkAutoBackup();
-            
-            // Reset reminder timer
-            resetReminderTimer();
             
             // Vibrate if supported
             if (navigator.vibrate) {
@@ -379,7 +252,7 @@
         
         // Update display
         function updateDisplay() {
-            CONFIG.buttons.forEach(btn => {
+            BUTTONS.forEach(btn => {
                 const countEl = document.getElementById(`count-${btn.id}`);
                 if (countEl) {
                     countEl.textContent = counts[btn.id] || 0;
@@ -388,78 +261,6 @@
             
             const total = Object.values(counts).reduce((sum, val) => sum + val, 0);
             document.getElementById('totalCount').textContent = total;
-        }
-        
-        // Update unsaved warning
-        function updateUnsavedWarning() {
-            const unsaved = entries.length - lastExportedCount;
-            const warningEl = document.getElementById('unsavedWarning');
-            const countEl = document.getElementById('unsavedCount');
-            
-            countEl.textContent = unsaved;
-            
-            if (unsaved > 0) {
-                warningEl.classList.add('show');
-                if (unsaved >= CONFIG.criticalUnsavedThreshold) {
-                    warningEl.classList.add('critical');
-                } else {
-                    warningEl.classList.remove('critical');
-                }
-            } else {
-                warningEl.classList.remove('show');
-                warningEl.classList.remove('critical');
-            }
-        }
-        
-        // Check for auto-backup
-        function checkAutoBackup() {
-            const unsaved = entries.length - lastExportedCount;
-            if (unsaved > 0 && unsaved % CONFIG.autoBackupInterval === 0) {
-                performAutoBackup();
-            }
-        }
-        
-        // Perform auto-backup
-        function performAutoBackup() {
-            if (entries.length === 0) return;
-            
-            const timestamp = new Date().toISOString().slice(0,19).replace(/[T:]/g, '-');
-            const csv = generateCSV();
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `aerial-tally-BACKUP-${timestamp}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            // Show notification
-            const notice = document.getElementById('autoBackupNotice');
-            notice.classList.add('show');
-            setTimeout(() => notice.classList.remove('show'), 2000);
-            
-            // Vibrate
-            if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100]);
-            }
-        }
-        
-        // Generate CSV
-        function generateCSV() {
-            const headers = ['Timestamp', 'Button', 'Latitude', 'Longitude', 'Altitude', 'Accuracy (m)'];
-            const rows = entries.map(e => [
-                e.timestamp,
-                e.button,
-                e.latitude !== null ? e.latitude : 'N/A',
-                e.longitude !== null ? e.longitude : 'N/A',
-                e.altitude !== null ? e.altitude : 'N/A',
-                e.accuracy !== null ? e.accuracy : 'N/A'
-            ]);
-            
-            return [
-                headers.join(','),
-                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-            ].join('\n');
         }
         
         // Show feedback
@@ -512,90 +313,60 @@
                 return;
             }
             
-            const timestamp = new Date().toISOString().slice(0,19).replace(/[T:]/g, '-');
-            const csv = generateCSV();
+            // Create CSV
+            const headers = ['Timestamp', 'Button', 'Latitude', 'Longitude', 'Altitude', 'Accuracy (m)'];
+            const rows = entries.map(e => [
+                e.timestamp,
+                e.button,
+                e.latitude || 'N/A',
+                e.longitude || 'N/A',
+                e.altitude || 'N/A',
+                e.accuracy || 'N/A'
+            ]);
+            
+            const csv = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+            
+            // Create download
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `aerial-tally-${timestamp}.csv`;
+            a.download = `aerial-tally-${new Date().toISOString().slice(0,19).replace(/[T:]/g, '-')}.csv`;
             a.click();
             URL.revokeObjectURL(url);
             
-            // Update last exported count
-            lastExportedCount = entries.length;
-            saveData();
-            updateUnsavedWarning();
-            
-            alert(`✅ Exported ${entries.length} entries!\n\nFile: aerial-tally-${timestamp}.csv`);
+            alert(`Exported ${entries.length} entries!`);
         }
         
         // Reset data
         function resetData() {
-            const unsaved = entries.length - lastExportedCount;
-            let confirmMsg = `Reset all data? This will delete ${entries.length} entries.`;
-            
-            if (unsaved > 0) {
-                confirmMsg = `⚠️ WARNING: You have ${unsaved} UNSAVED entries!\n\n` + confirmMsg + '\n\nAre you SURE?';
-            }
-            
-            if (!confirm(confirmMsg)) {
+            if (!confirm(`Reset all data? This will delete ${entries.length} entries.`)) {
                 return;
             }
             
             entries = [];
-            CONFIG.buttons.forEach(btn => counts[btn.id] = 0);
-            lastExportedCount = 0;
+            BUTTONS.forEach(btn => counts[btn.id] = 0);
             saveData();
             updateDisplay();
-            updateUnsavedWarning();
             alert('Data reset complete!');
         }
         
-        // Reminder timer
-        function resetReminderTimer() {
-            if (reminderTimer) clearTimeout(reminderTimer);
-            
-            reminderTimer = setTimeout(() => {
-                const unsaved = entries.length - lastExportedCount;
-                if (unsaved > 0) {
-                    if (confirm(`📊 Reminder: You have ${unsaved} unsaved entries.\n\nExport now?`)) {
-                        exportData();
-                    } else {
-                        resetReminderTimer(); // Reset for another interval
-                    }
-                }
-            }, CONFIG.reminderInterval);
-        }
-        
         // Initialize
-        updateOfflineStatus();
         loadData();
         createButtons();
         startGPS();
         updateDisplay();
-        resetReminderTimer();
         
         // Prevent accidental page refresh
         window.addEventListener('beforeunload', (e) => {
-            const unsaved = entries.length - lastExportedCount;
-            if (unsaved > 0) {
+            if (entries.length > 0) {
                 e.preventDefault();
-                e.returnValue = `You have ${unsaved} unsaved entries!`;
-                return e.returnValue;
+                e.returnValue = '';
             }
         });
-        
-        // Warn about low storage
-        if ('storage' in navigator && 'estimate' in navigator.storage) {
-            navigator.storage.estimate().then(estimate => {
-                const percentUsed = (estimate.usage / estimate.quota) * 100;
-                if (percentUsed > 80) {
-                    console.warn(`Storage is ${percentUsed.toFixed(1)}% full`);
-                    alert(`⚠️ Warning: Device storage is ${percentUsed.toFixed(0)}% full.\n\nExport data frequently to avoid data loss!`);
-                }
-            });
-        }
     </script>
 </body>
 </html>

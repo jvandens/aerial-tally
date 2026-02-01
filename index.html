@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Aerial Tally Counter</title>
     <style>
         * {
@@ -19,6 +21,8 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            user-select: none;
+            -webkit-user-select: none;
         }
         
         .header {
@@ -52,6 +56,19 @@
             background: #44ff44;
         }
         
+        .offline-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #44ff44;
+            margin-right: 5px;
+        }
+        
+        .offline-status.offline {
+            background: #ff9800;
+        }
+        
         .total-count {
             font-size: 18px;
             color: #4CAF50;
@@ -82,6 +99,7 @@
             justify-content: center;
             padding: 20px;
             min-height: 150px;
+            touch-action: manipulation;
         }
         
         .tally-button:active {
@@ -112,6 +130,7 @@
             padding: 15px;
             cursor: pointer;
             transition: all 0.2s;
+            touch-action: manipulation;
         }
         
         .control-button:active {
@@ -153,6 +172,9 @@
     <div class="header">
         <h1>Aerial Tally Counter</h1>
         <div class="status">
+            <span class="offline-status" id="offlineStatus"></span>
+            <span id="offlineText">Online</span>
+            &nbsp;|&nbsp;
             <span class="gps-status" id="gpsStatus"></span>
             <span id="statusText">Initializing GPS...</span>
         </div>
@@ -189,6 +211,31 @@
         
         // Initialize counts
         BUTTONS.forEach(btn => counts[btn.id] = 0);
+        
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed:', err));
+        }
+        
+        // Offline detection
+        function updateOfflineStatus() {
+            const isOnline = navigator.onLine;
+            const statusEl = document.getElementById('offlineStatus');
+            const textEl = document.getElementById('offlineText');
+            
+            if (isOnline) {
+                statusEl.classList.remove('offline');
+                textEl.textContent = 'Online';
+            } else {
+                statusEl.classList.add('offline');
+                textEl.textContent = 'Offline';
+            }
+        }
+        
+        window.addEventListener('online', updateOfflineStatus);
+        window.addEventListener('offline', updateOfflineStatus);
         
         // Load saved data
         function loadData() {
@@ -355,6 +402,7 @@
         }
         
         // Initialize
+        updateOfflineStatus();
         loadData();
         createButtons();
         startGPS();

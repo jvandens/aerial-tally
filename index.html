@@ -74,7 +74,28 @@
             color: #4CAF50;
             margin-top: 5px;
         }
-        
+
+        .undo-button {
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .undo-button:active {
+            transform: scale(0.95);
+        }
+
+        .undo-button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+                
         .button-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -179,6 +200,7 @@
             <span id="statusText">Initializing GPS...</span>
         </div>
         <div class="total-count">Total: <span id="totalCount">0</span></div>
+        <button class="undo-button" id="undoButton" onclick="undoLast()" disabled>↶ Undo Last</button>
     </div>
     
     <div class="button-grid" id="buttonGrid">
@@ -310,6 +332,7 @@
             
             const total = Object.values(counts).reduce((sum, val) => sum + val, 0);
             document.getElementById('totalCount').textContent = total;
+            updateUndoButton();
         }
         
         // Show feedback
@@ -401,6 +424,30 @@
             saveData();
             updateDisplay();
             alert('Data reset complete!');
+        }
+
+        // Undo last entry
+        function undoLast() {
+            if (entries.length === 0) return;
+            
+            const lastEntry = entries.pop();
+            counts[lastEntry.buttonId]--;
+            
+            saveData();
+            updateDisplay();
+            updateUndoButton();
+            
+            // Show feedback
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = `↶ Undone: ${lastEntry.button}`;
+            feedback.classList.add('show');
+            setTimeout(() => feedback.classList.remove('show'), 500);
+        }
+        
+        // Update undo button state
+        function updateUndoButton() {
+            const undoBtn = document.getElementById('undoButton');
+            undoBtn.disabled = entries.length === 0;
         }
         
         // Initialize

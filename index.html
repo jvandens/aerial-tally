@@ -461,7 +461,18 @@
         window.addEventListener('beforeunload', (e) => {
             if (entries.length > 0) {
                 e.preventDefault();
-                e.returnValue = '';
+                e.returnValue = 'You have unsaved survey data!';
+                return e.returnValue;
+            }
+        });
+        
+        // Intercept Ctrl+R / Cmd+R / F5
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R') || e.key === 'F5') {
+                if (entries.length > 0) {
+                    e.preventDefault();
+                    alert('⚠️ Cannot refresh - you have unsaved survey data!\n\nPlease export first, then reset to refresh.');
+                }
             }
         });
     </script>

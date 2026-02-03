@@ -33,6 +33,22 @@
             border-radius: 10px;
             margin-bottom: 15px;
         }
+
+        .button-labels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .button-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
         
         .header h1 {
             font-size: 24px;
@@ -203,6 +219,11 @@
         <div class="total-count">Total: <span id="totalCount">0</span></div>
         <button class="undo-button" id="undoButton" onclick="undoLast()" disabled>↶ Undo Last</button>
     </div>
+
+    <div class="button-labels">
+        <div class="button-label">Boaters</div>
+        <div class="button-label">Shoreline</div>
+    </div>
     
     <div class="button-grid" id="buttonGrid">
         <!-- Buttons will be added here -->
@@ -219,13 +240,13 @@
         // Configuration - CUSTOMIZE BUTTONS HERE
         const BUTTONS = [
             { id: '1/boat', label: '1/boat', color: '#4CAF50' },
-            { id: 'NY', label: 'NY', color: '#2196F3' },
-            { id: '2/boat', label: '2/boat', color: '#4CAF50' },
-            { id: 'PA', label: 'PA', color: '#2196F3' },
-            { id: '3/boat', label: '3/boat', color: '#4CAF50' },
             { id: 'DE', label: 'DE', color: '#2196F3' },
+            { id: '2/boat', label: '2/boat', color: '#4CAF50' },
+            { id: 'NJ', label: 'NJ', color: '#2196F3' },       
+            { id: '3/boat', label: '3/boat', color: '#4CAF50' },
+            { id: 'PA', label: 'PA', color: '#2196F3' },
             { id: '4/boat', label: '4/boat', color: '#4CAF50' },
-            { id: 'NJ', label: 'NJ', color: '#2196F3' }
+            { id: 'NY', label: 'NY', color: '#2196F3' }
         ];
         
         // State

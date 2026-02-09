@@ -112,6 +112,29 @@
             background: #555;
             cursor: not-allowed;
         }
+
+        .heartbeat-button {
+            background: #9C27B0;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+            margin-left: 8px;
+        }
+        
+        .heartbeat-button:active {
+            transform: scale(0.95);
+        }
+        
+        .heartbeat-indicator {
+            font-size: 10px;
+            color: #888;
+            margin-top: 4px;
+        }
                 
         .button-grid {
             display: grid;
@@ -218,6 +241,8 @@
         </div>
         <div class="total-count">Total: <span id="totalCount">0</span></div>
         <button class="undo-button" id="undoButton" onclick="undoLast()" disabled>↶ Undo Last</button>
+        <button class="heartbeat-button" onclick="manualHeartbeat()">💓 Heartbeat</button>
+        <div class="heartbeat-indicator" id="heartbeatIndicator">Last: Never</div>
     </div>
 
     <div class="button-labels">
@@ -246,7 +271,8 @@
             { id: '3/boat', label: '3/boat', color: '#4CAF50' },
             { id: 'PA', label: 'PA', color: '#2196F3' },
             { id: '4/boat', label: '4/boat', color: '#4CAF50' },
-            { id: 'NY', label: 'NY', color: '#2196F3' }
+            { id: 'NY', label: 'NY', color: '#2196F3' },
+            { id: 'heartbeat', label: 'Heartbeat', color: '#9C27B0' }
         ];
         
         // State
@@ -446,6 +472,7 @@
             saveData();
             updateDisplay();
             alert('Data reset complete!');
+            startAutoHeartbeat(); // Restart heartbeat after reset
         }
 
         // Undo last entry
@@ -471,6 +498,44 @@
             const undoBtn = document.getElementById('undoButton');
             undoBtn.disabled = entries.length === 0;
         }
+
+        // Heartbeat functions
+        let heartbeatInterval = null;
+        const HEARTBEAT_INTERVAL_MS = 60000; // 60 seconds
+        
+        function recordHeartbeat() {
+            logEntry('heartbeat', 'Heartbeat');
+            
+            // Update indicator
+            const now = new Date().toLocaleTimeString();
+            document.getElementById('heartbeatIndicator').textContent = `Last: ${now}`;
+        }
+        
+        function manualHeartbeat() {
+            recordHeartbeat();
+            
+            // Show feedback
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = '💓 Heartbeat Recorded';
+            feedback.style.background = 'rgba(156, 39, 176, 0.95)';
+            feedback.classList.add('show');
+            setTimeout(() => {
+                feedback.classList.remove('show');
+                feedback.style.background = 'rgba(76, 175, 80, 0.95)'; // Reset to green
+            }, 500);
+        }
+        
+        function startAutoHeartbeat() {
+            heartbeatInterval = setInterval(() => {
+                recordHeartbeat();
+            }, HEARTBEAT_INTERVAL_MS);
+        }
+        
+        function stopAutoHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+            }
+        }
         
         // Initialize
         updateOfflineStatus();
@@ -478,6 +543,7 @@
         createButtons();
         startGPS();
         updateDisplay();
+        startAutoHeartbeat(); // Start automatic heartbeat
         
         // Prevent accidental page refresh
         window.addEventListener('beforeunload', (e) => {

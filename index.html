@@ -271,8 +271,7 @@
             { id: '3/boat', label: '3/boat', color: '#4CAF50' },
             { id: 'PA', label: 'PA', color: '#2196F3' },
             { id: '4/boat', label: '4/boat', color: '#4CAF50' },
-            { id: 'NY', label: 'NY', color: '#2196F3' },
-            { id: 'heartbeat', label: 'Heartbeat', color: '#9C27B0' }
+            { id: 'NY', label: 'NY', color: '#2196F3' }
         ];
         
         // State
@@ -498,13 +497,25 @@
             const undoBtn = document.getElementById('undoButton');
             undoBtn.disabled = entries.length === 0;
         }
-
+        
         // Heartbeat functions
         let heartbeatInterval = null;
-        const HEARTBEAT_INTERVAL_MS = 60000; // 60 seconds
+        const HEARTBEAT_INTERVAL_MS = 60000; // 60 seconds   0 = disabled
         
         function recordHeartbeat() {
-            logEntry('heartbeat', 'Heartbeat');
+            // Record heartbeat entry WITHOUT incrementing counts
+            const entry = {
+                timestamp: new Date().toISOString(),
+                button: 'Heartbeat',
+                buttonId: 'heartbeat',
+                latitude: currentPosition?.latitude || null,
+                longitude: currentPosition?.longitude || null,
+                altitude: currentPosition?.altitude || null,
+                accuracy: currentPosition?.accuracy || null
+            };
+            
+            entries.push(entry);
+            saveData();
             
             // Update indicator
             const now = new Date().toLocaleTimeString();
@@ -526,6 +537,8 @@
         }
         
         function startAutoHeartbeat() {
+            if (HEARTBEAT_INTERVAL_MS === 0) return; // Don't start if disabled
+            
             heartbeatInterval = setInterval(() => {
                 recordHeartbeat();
             }, HEARTBEAT_INTERVAL_MS);
